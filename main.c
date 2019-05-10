@@ -11,6 +11,7 @@
 #include <net/ethernet.h>       
 #include <sys/ioctl.h>
 #include <linux/if_packet.h>
+#include <string.h>
 
 void ProcessPacket(unsigned char* , int);
 void print_ip_header(unsigned char* , int);
@@ -24,12 +25,12 @@ FILE *logfile;
 int tcp=0,udp=0,icmp=0,others=0,igmp=0,total=0,i,j;
 struct sockaddr_in source,dest;
 
-int main(int argc, char* argv[])
+int solve()
 {
 	int saddr_size , data_size;
 	struct sockaddr saddr;
 	struct in_addr in;
-	
+	int count = 0;
 	unsigned char *buffer = (unsigned char *)malloc(65536); //Its Big!
 	
 	logfile=fopen("log.txt","w");
@@ -48,7 +49,7 @@ int main(int argc, char* argv[])
 	memset(&ifr, 0, sizeof(ifr));
 	snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "wlp3s0");
 	if (setsockopt(sock_raw, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, sizeof(ifr)) < 0) {
-		printf("INTERFACE!!!\n");
+		printf("Problem with conection to interface\n");
 		return 1;
 	}
 
@@ -62,13 +63,32 @@ int main(int argc, char* argv[])
 			printf("Recvfrom error , failed to get packets\n");
 			return 1;
 		}
-        //printf("%s", buffer);
         //getchar ();
 		//Now process the packet
-		ProcessPacket(buffer , data_size);
+		//ProcessPacket(buffer , data_size);
+		printf("There is %d packets \n\r", ++count);
+
 	}
 	close(sock_raw);
 	printf("Finished");
+	return 0;
+}
+
+int main(int argc, char* argv[])
+{
+	//solve();
+	char start[] = "start";
+	if(argc < 2)
+	{
+		printf("Error: you should write parametr\n");
+		return 1;
+	}
+	if(argc == 2 && !strcmp(argv[1], "start")) solve();
+	if(argc == 2 && !strcmp(argv[1], "stop")) 1;
+	if(argc == 4 && !strcmp(argv[1], "show") && !strcmp(argv[3], "count")) 1;
+	if(argc == 4 && !strcmp(argv[1], "select") && !strcmp(argv[2], "iface")) 1;
+	if(argc == 3 && !strcmp(argv[1], "stat")) 1;
+	if(argc == 2 && !strcmp(argv[1], "--help")) 1;
 	return 0;
 }
 
@@ -90,19 +110,19 @@ void ProcessPacket(unsigned char* buffer, int size)
 		
 		case 6:  //TCP Protocol
 			++tcp;
-			print_tcp_packet(buffer , size);
+			//print_tcp_packet(buffer , size);
 			break;
 		
 		case 17: //UDP Protocol
 			++udp;
-			print_udp_packet(buffer , size);
+			//print_udp_packet(buffer , size);
 			break;
 		
 		default: //Some Other Protocol like ARP etc.
 			++others;
 			break;
 	}
-	printf("TCP : %d   UDP : %d   ICMP : %d   IGMP : %d   Others : %d   Total : %d  %u\r",tcp,udp,icmp,igmp,others,total, iph->saddr);
+	printf("TCP : %d   UDP : %d   ICMP : %d   IGMP : %d   Others : %d   Total : %d \n\r",tcp,udp,icmp,igmp,others,total);
 }
 
 void print_ip_header(unsigned char* Buffer, int Size)
