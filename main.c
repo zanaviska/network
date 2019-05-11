@@ -12,6 +12,8 @@
 #include <sys/ioctl.h>
 #include <linux/if_packet.h>
 #include <string.h>
+#include <signal.h>
+#include <sys/wait.h> 
 
 // to store all ip and count for iface and have a quick access to it, I use avl tree
 // the key of balance is our ip
@@ -23,7 +25,7 @@ struct node
     struct node *left; 
     struct node *right; 
     int height; 
-}; 
+} *tree_root = NULL; 
   
 // A utility function to get the height of the tree 
 int height(struct node *n) 
@@ -158,34 +160,34 @@ void preOrder(struct node *root)
 { 
     if(root != NULL) 
     { 
-        printf("%d(%d) ", root->ip, root->count); 
         preOrder(root->left); 
+        printf("%d %d\n", root->ip, root->count); 
         preOrder(root->right); 
     } 
 } 
 
 //function that increase ip's counter
-struct node* increase(struct node *root, int ip)
+void increase(struct node *root, int ip)
 {
 	if(root == NULL) //only if we inc node in empty tree
-		return newnode(ip, 1);
+		return tree_root = newnode(ip, 1);
 	if(root->ip == ip)
 	{
 		root->count++;
 		return root;
 	}
+	struct node* res = root;
 	if(ip < root->ip)
 	{
 		if(root->left == NULL)
-			root->left = newnode(ip, 0);
+			return tree_root = insert(tree_root, ip, 1);
 		increase(root->left, ip);
 	} else
 	{
 		if(root->right == NULL)
-			root->right = newnode(ip, 0);
+			return tree_root = insert(tree_root, ip, 1);
 		increase(root->right, ip);
 	}
-	return root;
 }
 
 //making tree empty
@@ -202,19 +204,17 @@ struct node* clear(struct node* root)
 int sock_raw;
 int total = 0;
 struct sockaddr_in source, dest;
-struct node *tree_root = NULL;
-char iface[10];
+char iface[];
 
 int start();
 int stop();
-int show();
-int select_iface();
+void show(int ip);
+int select_iface(char* iface);
 int stat();
 int help();
 
 int main(int argc, char* argv[])
 {
-	printf("-----------------------------------------------------------------------\n");
 	if(argc < 2)
 	{
 		printf("Error: you should write parametr\n");
@@ -222,11 +222,20 @@ int main(int argc, char* argv[])
 	}
 	if(argc == 2 && !strcmp(argv[1], "start")) start();
 	if(argc == 2 && !strcmp(argv[1], "stop")) stop();
-	if(argc == 4 && !strcmp(argv[1], "show") && !strcmp(argv[3], "count")) show();
+	if(argc == 4 && !strcmp(argv[1], "show") && !strcmp(argv[3], "count")) show(inet_addr(argv[2]));
 	if(argc == 4 && !strcmp(argv[1], "select") && !strcmp(argv[2], "iface")) select_iface(argv[3]);
 	if(argc == 3 && !strcmp(argv[1], "stat")) stat();
 	if(argc == 2 && !strcmp(argv[1], "--help")) help();
 	return 0;
+	increase(tree_root, 15);
+	preOrder(tree_root);
+	printf("\n");
+	increase(tree_root, -15);
+	preOrder(tree_root);
+	printf("\n");
+	increase(tree_root, -5);
+	preOrder(tree_root);
+	printf("\n");
 }
 
 int start()
@@ -236,6 +245,16 @@ int start()
 	struct in_addr in;
 	int count = 0;
 	unsigned char *buffer = (unsigned char *)malloc(65536); //Its Big!
+
+	FILE* system_input = fopen("system.txt", "r");
+	int child_proc;
+	fscanf(system_input, "%s%d", &iface, &child_proc);
+	fclose(system_input);
+	if(child_proc != -1)
+	{
+		printf("Error: proces is already running");
+		return 1;
+	}
 
 	printf("Starting...\n");
 	//Create a raw socket that shall sniff
@@ -249,22 +268,28 @@ int start()
     struct ifreq ifr;
 
 	memset(&ifr, 0, sizeof(ifr));
-	FILE* system_input = fopen("system.txt", "r");
-	char iface[10];
-	fscanf(system_input, "%s", &iface);
-	fclose(system_input);
 	snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), iface);
 	if (setsockopt(sock_raw, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, sizeof(ifr)) < 0) {
 		printf("Problem with conection to interface\n");
 		return 1;
 	}
-
-	while(1)
+	int pid = fork();
+	printf("\n\n%d\n\n", pid);
+	if(pid)
+		return 0;
+	pid = fork();
+	if(!pid)
+		while(1);
+	system_input = fopen("system.txt", "w");
+	fprintf(system_input, "%s\n%d\n%d", iface, pid, sock_raw);
+	fclose(system_input);
+	int status;
+	while(!waitpid(-1, &status, WNOHANG))
 	{
 		saddr_size = sizeof saddr;
 		//Receive a packet
 		data_size = recvfrom(sock_raw , buffer , 65536 , 0 , &saddr , &saddr_size);
-		if(data_size <0 )
+		if(data_size < 0)
 		{
 			printf("Recvfrom error , failed to get packets\n");
 			return 1;
@@ -274,8 +299,10 @@ int start()
 		struct iphdr *iph = (struct iphdr *)buffer;
 		memset(&source, 0, sizeof(source));
 		source.sin_addr.s_addr = iph->saddr;
-
-		printf("There is %d packets  and last is from %s(%d) \n\r", ++count, inet_ntoa(source.sin_addr), source.sin_addr);
+		increase(tree_root, source.sin_addr.s_addr);
+		printf("There is %d packets  and last is from %s(%d) \n\r", ++count, inet_ntoa(source.sin_addr), source.sin_addr.s_addr);
+		preOrder(tree_root);
+		printf("\n");
 
 	}
 	close(sock_raw);
@@ -285,12 +312,32 @@ int start()
 
 int stop()
 {
+	FILE* system_input = fopen("system.txt", "r+");
+	int ppid;
+	int sock_raw;
+	fscanf(system_input, "%s%d%d", &iface, &ppid, &sock_raw);
+	fseek(system_input, 0, SEEK_SET);
+	fprintf(system_input, "%s\n-1\n1\n", iface);  
+	fclose(system_input);
+	//close(sock_raw);
+	shutdown(sock_raw, 2);
+	getchar();
+	kill(ppid, SIGTERM);
 	return 0;
 }
 
-int show()
+void show(int ip)
 {
-
+	struct node* now = tree_root;
+	while(now != NULL)
+	{
+		if(now->ip == ip) return printf("There are %d from this IP address\n", now->count);
+		if(ip < now->ip)
+			now = now->left;
+		else
+			now = now->right;
+	}
+	printf("There is 0 packets prom that IP address\n");
 }
 
 int select_iface(char* iface)
