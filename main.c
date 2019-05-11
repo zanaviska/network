@@ -187,6 +187,16 @@ struct node* increase(struct node *root, int ip)
 	}
 	return root;
 }
+
+//making tree empty
+struct node* clear(struct node* root)
+{
+	if(root == NULL) return NULL;
+	clear(root->left);
+	clear(root->right);
+	free(root);
+	return NULL;
+}
 //end of tree realization
 
 int sock_raw;
