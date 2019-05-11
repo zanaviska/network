@@ -25,7 +25,31 @@ FILE *logfile;
 int tcp=0,udp=0,icmp=0,others=0,igmp=0,total=0,i,j;
 struct sockaddr_in source,dest;
 
-int solve()
+int start();
+int stop();
+int show();
+int select_iface();
+int stat();
+int help();
+
+int main(int argc, char* argv[])
+{
+	//solve();
+	if(argc < 2)
+	{
+		printf("Error: you should write parametr\n");
+		return 1;
+	}
+	if(argc == 2 && !strcmp(argv[1], "start")) start();
+	if(argc == 2 && !strcmp(argv[1], "stop")) stop();
+	if(argc == 4 && !strcmp(argv[1], "show") && !strcmp(argv[3], "count")) show();
+	if(argc == 4 && !strcmp(argv[1], "select") && !strcmp(argv[2], "iface")) select_iface(argv[3]);
+	if(argc == 3 && !strcmp(argv[1], "stat")) stat();
+	if(argc == 2 && !strcmp(argv[1], "--help")) help();
+	return 0;
+}
+
+int start()
 {
 	int saddr_size , data_size;
 	struct sockaddr saddr;
@@ -33,8 +57,8 @@ int solve()
 	int count = 0;
 	unsigned char *buffer = (unsigned char *)malloc(65536); //Its Big!
 	
-	logfile=fopen("log.txt","w");
-	if(logfile==NULL) printf("Unable to create file.");
+	//logfile=fopen("log.txt","w");
+	//if(logfile==NULL) printf("Unable to create file.");
 	printf("Starting...\n");
 	//Create a raw socket that shall sniff
 	sock_raw = socket(AF_INET , SOCK_RAW , IPPROTO_TCP);
@@ -47,7 +71,11 @@ int solve()
     struct ifreq ifr;
 
 	memset(&ifr, 0, sizeof(ifr));
-	snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "wlp3s0");
+	FILE* system_input = fopen("system.txt", "r");
+	char iface[10];
+	fscanf(system_input, "%s", &iface);
+	printf("%s\n", iface);
+	snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), iface);
 	if (setsockopt(sock_raw, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, sizeof(ifr)) < 0) {
 		printf("Problem with conection to interface\n");
 		return 1;
@@ -63,7 +91,6 @@ int solve()
 			printf("Recvfrom error , failed to get packets\n");
 			return 1;
 		}
-        //getchar ();
 		//Now process the packet
 		//ProcessPacket(buffer , data_size);
 		printf("There is %d packets \n\r", ++count);
@@ -74,22 +101,29 @@ int solve()
 	return 0;
 }
 
-int main(int argc, char* argv[])
+int stop()
 {
-	//solve();
-	char start[] = "start";
-	if(argc < 2)
-	{
-		printf("Error: you should write parametr\n");
-		return 1;
-	}
-	if(argc == 2 && !strcmp(argv[1], "start")) solve();
-	if(argc == 2 && !strcmp(argv[1], "stop")) 1;
-	if(argc == 4 && !strcmp(argv[1], "show") && !strcmp(argv[3], "count")) 1;
-	if(argc == 4 && !strcmp(argv[1], "select") && !strcmp(argv[2], "iface")) 1;
-	if(argc == 3 && !strcmp(argv[1], "stat")) 1;
-	if(argc == 2 && !strcmp(argv[1], "--help")) 1;
-	return 0;
+
+}
+
+int show()
+{
+
+}
+
+int select_iface(char* iface)
+{
+	stop();
+	FILE* system_input;
+	system_input = fopen("system.txt", "w");
+	fprintf(system_input, "%s\n", iface);
+	fclose(system_input);
+	start();
+}
+
+int help()
+{
+
 }
 
 void ProcessPacket(unsigned char* buffer, int size)
@@ -101,7 +135,7 @@ void ProcessPacket(unsigned char* buffer, int size)
 	{
 		case 1:  //ICMP Protocol
 			++icmp;
-			//PrintIcmpPacket(Buffer,Size);
+			//PrintIcmpPacket(buffer,size);
 			break;
 		
 		case 2:  //IGMP Protocol
@@ -110,7 +144,7 @@ void ProcessPacket(unsigned char* buffer, int size)
 		
 		case 6:  //TCP Protocol
 			++tcp;
-			//print_tcp_packet(buffer , size);
+			print_tcp_packet(buffer , size);
 			break;
 		
 		case 17: //UDP Protocol
@@ -122,6 +156,7 @@ void ProcessPacket(unsigned char* buffer, int size)
 			++others;
 			break;
 	}
+	print_ip_header(buffer, size);
 	printf("TCP : %d   UDP : %d   ICMP : %d   IGMP : %d   Others : %d   Total : %d \n\r",tcp,udp,icmp,igmp,others,total);
 }
 
@@ -199,79 +234,6 @@ void print_tcp_packet(unsigned char* Buffer, int Size)
 	fprintf(logfile,"Data Payload\n");	
 	PrintData(Buffer + iphdrlen + tcph->doff*4 , (Size - tcph->doff*4-iph->ihl*4) );
 						
-	fprintf(logfile,"\n###########################################################");
-}
-
-void print_udp_packet(unsigned char *Buffer , int Size)
-{
-	
-	unsigned short iphdrlen;
-	
-	struct iphdr *iph = (struct iphdr *)Buffer;
-	iphdrlen = iph->ihl*4;
-	
-	struct udphdr *udph = (struct udphdr*)(Buffer + iphdrlen);
-	
-	fprintf(logfile,"\n\n***********************UDP Packet*************************\n");
-	
-	print_ip_header(Buffer,Size);			
-	
-	fprintf(logfile,"\nUDP Header\n");
-	fprintf(logfile,"   |-Source Port      : %d\n" , ntohs(udph->source));
-	fprintf(logfile,"   |-Destination Port : %d\n" , ntohs(udph->dest));
-	fprintf(logfile,"   |-UDP Length       : %d\n" , ntohs(udph->len));
-	fprintf(logfile,"   |-UDP Checksum     : %d\n" , ntohs(udph->check));
-	
-	fprintf(logfile,"\n");
-	fprintf(logfile,"IP Header\n");
-	PrintData(Buffer , iphdrlen);
-		
-	fprintf(logfile,"UDP Header\n");
-	PrintData(Buffer+iphdrlen , sizeof udph);
-		
-	fprintf(logfile,"Data Payload\n");	
-	PrintData(Buffer + iphdrlen + sizeof udph ,( Size - sizeof udph - iph->ihl * 4 ));
-	
-	fprintf(logfile,"\n###########################################################");
-}
-
-void print_icmp_packet(unsigned char* Buffer , int Size)
-{
-	unsigned short iphdrlen;
-	
-	struct iphdr *iph = (struct iphdr *)Buffer;
-	iphdrlen = iph->ihl*4;
-	
-	struct icmphdr *icmph = (struct icmphdr *)(Buffer + iphdrlen);
-			
-	fprintf(logfile,"\n\n***********************ICMP Packet*************************\n");	
-	
-	print_ip_header(Buffer , Size);
-			
-	fprintf(logfile,"\n");
-		
-	fprintf(logfile,"ICMP Header\n");
-	fprintf(logfile,"   |-Type : %d",(unsigned int)(icmph->type));
-			
-	if((unsigned int)(icmph->type) == 11) 
-		fprintf(logfile,"  (TTL Expired)\n");
-	else if((unsigned int)(icmph->type) == ICMP_ECHOREPLY) 
-		fprintf(logfile,"  (ICMP Echo Reply)\n");
-	fprintf(logfile,"   |-Code : %d\n",(unsigned int)(icmph->code));
-	fprintf(logfile,"   |-Checksum : %d\n",ntohs(icmph->checksum));
-	//fprintf(logfile,"   |-ID       : %d\n",ntohs(icmph->id));
-	//fprintf(logfile,"   |-Sequence : %d\n",ntohs(icmph->sequence));
-	fprintf(logfile,"\n");
-
-	fprintf(logfile,"IP Header\n");
-	PrintData(Buffer,iphdrlen);
-		
-	fprintf(logfile,"UDP Header\n");
-	PrintData(Buffer + iphdrlen , sizeof icmph);
-		
-	fprintf(logfile,"Data Payload\n");	
-	PrintData(Buffer + iphdrlen + sizeof icmph , (Size - sizeof icmph - iph->ihl * 4));
-	
 	fprintf(logfile,"\n###########################################################");
 }
 
