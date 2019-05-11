@@ -13,27 +13,8 @@
 #include <linux/if_packet.h>
 #include <string.h>
 
-void ProcessPacket(unsigned char* , int);
-void print_ip_header(unsigned char* , int);
-void print_tcp_packet(unsigned char* , int);
-void print_udp_packet(unsigned char * , int);
-void print_icmp_packet(unsigned char* , int);
-void PrintData (unsigned char* , int);
-
-int sock_raw;
-int tcp=0,udp=0,icmp=0,others=0,igmp=0,total=0,i,j;
-struct sockaddr_in source,dest;
-char iface[10];
-
-int start();
-int stop();
-int show();
-int select_iface();
-int stat();
-int help();
-
-// to store all ip count for iface and have a quick access I use avl tree
-// the key of sort is our ip
+// to store all ip and count for iface and have a quick access to it, I use avl tree
+// the key of balance is our ip
 // start of tree realization
 struct node 
 { 
@@ -184,12 +165,14 @@ void preOrder(struct node *root)
 } 
 
 //function that increase ip's counter
-void increase(struct node *root, int ip)
+struct node* increase(struct node *root, int ip)
 {
+	if(root == NULL) //only if we inc node in empty tree
+		return newnode(ip, 1);
 	if(root->ip == ip)
 	{
 		root->count++;
-		return;
+		return root;
 	}
 	if(ip < root->ip)
 	{
@@ -202,13 +185,31 @@ void increase(struct node *root, int ip)
 			root->right = newnode(ip, 0);
 		increase(root->right, ip);
 	}
+	return root;
 }
-
 //end of tree realization
+
+int sock_raw;
+int total = 0;
+struct sockaddr_in source, dest;
+struct node *tree_root = NULL;
+char iface[10];
+
+int start();
+int stop();
+int show();
+int select_iface();
+int stat();
+int help();
 
 int main(int argc, char* argv[])
 {
-	if(argc < 2)
+	printf("-----------------------------------------------------------------------\n");
+	tree_root = increase(tree_root, 15);
+	tree_root = insert(tree_root, 15, 100);
+	tree_root = insert(tree_root, 16, 100);
+	preOrder(tree_root);
+	/*if(argc < 2)
 	{
 		printf("Error: you should write parametr\n");
 		return 1;
@@ -219,7 +220,7 @@ int main(int argc, char* argv[])
 	if(argc == 4 && !strcmp(argv[1], "select") && !strcmp(argv[2], "iface")) select_iface(argv[3]);
 	if(argc == 3 && !strcmp(argv[1], "stat")) stat();
 	if(argc == 2 && !strcmp(argv[1], "--help")) help();
-	return 0;
+	return 0;*/
 }
 
 int start()
@@ -267,7 +268,8 @@ int start()
 		struct iphdr *iph = (struct iphdr *)buffer;
 		memset(&source, 0, sizeof(source));
 		source.sin_addr.s_addr = iph->saddr;
-		printf("There is %d packets  and last is from %s \n\r", ++count, inet_ntoa(source.sin_addr));
+
+		printf("There is %d packets  and last is from %s(%d) \n\r", ++count, inet_ntoa(source.sin_addr), source.sin_addr);
 
 	}
 	close(sock_raw);
