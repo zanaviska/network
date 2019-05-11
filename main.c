@@ -205,11 +205,7 @@ int help();
 int main(int argc, char* argv[])
 {
 	printf("-----------------------------------------------------------------------\n");
-	tree_root = increase(tree_root, 15);
-	tree_root = insert(tree_root, 15, 100);
-	tree_root = insert(tree_root, 16, 100);
-	preOrder(tree_root);
-	/*if(argc < 2)
+	if(argc < 2)
 	{
 		printf("Error: you should write parametr\n");
 		return 1;
@@ -220,7 +216,7 @@ int main(int argc, char* argv[])
 	if(argc == 4 && !strcmp(argv[1], "select") && !strcmp(argv[2], "iface")) select_iface(argv[3]);
 	if(argc == 3 && !strcmp(argv[1], "stat")) stat();
 	if(argc == 2 && !strcmp(argv[1], "--help")) help();
-	return 0;*/
+	return 0;
 }
 
 int start()
