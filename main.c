@@ -471,7 +471,6 @@ int stat(char* out_iface)
 		if(!stop())
 			start();
 	}
-	//printf("%d %s %s\n", strcmp(out_iface, iface), out_iface, iface);
 	char temp[] = "./folder_for_iface/";
 	strcat(temp, out_iface);
 	FILE* input = fopen(temp, "r");
