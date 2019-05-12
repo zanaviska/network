@@ -15,6 +15,7 @@
 #include <signal.h>
 #include <sys/wait.h> 
 #include <sys/shm.h>
+#include <dirent.h> 
 
 #define SHMSZ     27
 
@@ -223,8 +224,9 @@ int start();
 int stop();
 void show(int ip);
 int select_iface(char* iface);
-int stat();
+int stat(char*);
 int help();
+void clean();
 
 int main(int argc, char* argv[])
 {
@@ -237,8 +239,9 @@ int main(int argc, char* argv[])
 	if(argc == 2 && !strcmp(argv[1], "stop")) stop();
 	if(argc == 4 && !strcmp(argv[1], "show") && !strcmp(argv[3], "count")) show(inet_addr(argv[2]));
 	if(argc == 4 && !strcmp(argv[1], "select") && !strcmp(argv[2], "iface")) select_iface(argv[3]);
-	if(argc == 3 && !strcmp(argv[1], "stat")) stat();
 	if(argc == 2 && !strcmp(argv[1], "--help")) help();
+	if(argc == 2 && !strcmp(argv[1], "stat")) stat("");
+	if(argc == 3 && !strcmp(argv[1], "stat")) stat(argv[2]);
 	return 0;
 }
 
@@ -335,10 +338,7 @@ int start()
 	{
 		if(*need)
 		{
-			printf("???????????????????????????????????????????????\n");
-			printf("%d\n", *ip);
 			*ip = print_count_for_ip(*ip);
-			printf("%d\n", *ip);
 			*need = 0;
 		}
 		saddr_size = sizeof saddr;
@@ -346,7 +346,7 @@ int start()
 		data_size = recvfrom(sock_raw , buffer , 65536 , 0 , &saddr , &saddr_size);
 		if(data_size < 0)
 		{
-			printf("Recvfrom error , failed to get packets\n");
+			//printf("Recvfrom error , failed to get packets\n");
 			return 1;
 		}
 		//Now process the packet
@@ -361,7 +361,7 @@ int start()
 	output = fopen(iface, "w");
 	print_tree(tree_root);
 	fclose(output);
-	printf("Finished\n");
+	//printf("Finished\n");
 	return 0;
 }
 
@@ -418,5 +418,48 @@ int select_iface(char* iface)
 
 int help()
 {
+	printf("Base syntacs: \n\tsudo ./a.out [command].\nAvailable comands:\n");
+	printf("\t--help            show usage information\n");
+	printf("\tstart             Program starts to stiff packets from particular interface(default: eth0)\n");
+	printf("\tstop              Program doesn't sniff packets\n");
+	printf("\tshow [ip] count   print number pf packets recived from ip address\n");
+	printf("\tselect iface [i]  select interface for sniffing eht0, wlan, ethN, ...\n");
+	printf("\tstat [iface]      show all collected statistic for particular interface, if iface is not ommited - for all interfaces\n");
+	printf("\tclean             delete all collected statistic, and restore default variable\n");
+}
 
+int stat(char* iface)
+{
+	if(!strcmp(iface, ""))
+	{
+		struct dirent *de;
+		DIR *dr = opendir(".");
+		while(de = readdir(dr) != NULL)
+			if(strcmp(de->d_name, "Makefile") && strcmp(de->d_name, "main.c") && strcmp(de->d_name, "a.out") && strcmp(de->d_name, "system.txt") && strcmp(de->d_name, "README.md"))
+				stat(de->d_name);
+		return 0;
+	}
+	FILE* input = fopen(iface, "r");
+	char c = fgetc(input); 
+    while (c != EOF) 
+    { 
+        printf ("%c", c); 
+        c = fgetc(input); 
+    } 
+    fclose(input); 
+	return 0;
+}
+
+void clean()
+{
+	stop();
+	struct dirent *de;
+	DIR *dr = opendir(".");
+	while(de = readdir(dr) != NULL)
+		if(strcmp(de->d_name, "Makefile") && strcmp(de->d_name, "main.c") && strcmp(de->d_name, "a.out") && strcmp(de->d_name, "system.txt") && strcmp(de->d_name, "README.md"))
+			remove(de->d_name);
+	closedir(dr);
+	FILE* system_input = fopen("system.txt", "w");
+	fscanf(system_input, "eth0\n-1\n1");
+	fclose(system_input);
 }
