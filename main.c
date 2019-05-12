@@ -360,7 +360,9 @@ int start()
 		//printf("There is %d packets  and last is from %s(%d) \n\r", ++count, inet_ntoa(source.sin_addr), source.sin_addr.s_addr);
 	}
 	close(sock_raw);
-	output = fopen(iface, "w");
+	char temp = "./folder_for_iface";
+	strcat(temp, iface);
+	output = fopen(temp, "w");
 	print_tree(tree_root);
 	fclose(output);
 	//printf("Finished\n");
@@ -418,8 +420,10 @@ int select_iface(char* new_iface)
 	fprintf(system_input, "%s\n-1\n1", new_iface);
 	strcpy(iface, new_iface);
 	fclose(system_input);
-
-	system_input = fopen(new_iface, "r+");
+	
+	char temp = "./folder_for_iface";
+	strcat(temp, iface);
+	system_input = fopen(temp, "r+");
 	int ip, count;
 	if(system_input != NULL)
 	{
@@ -444,21 +448,28 @@ int help()
 	printf("\tclean             delete all collected statistic, and restore default variable\n");
 }
 
-int stat(char* iface)
+int stat(char* out_iface)
 {
-	if(!strcmp(iface, ""))
+	if(!strcmp(out_iface, iface))
 	{
-		struct dirent *de;
-		DIR *dr = opendir(".");
-		while((void*)(de = readdir(dr)) != NULL)
-			if(strcmp(de->d_name, ".git") && strcmp(de->d_name, "..") && strcmp(de->d_name, ".") && strcmp(de->d_name, "Makefile") && strcmp(de->d_name, "main.c") && strcmp(de->d_name, "a.out") && strcmp(de->d_name, "system.txt") && strcmp(de->d_name, "README.md"))
-				{
-					printf("\tInterface: %s\n", de->d_name);
-					stat(de->d_name);
-				}
+		preOrder(tree_root);
 		return 0;
 	}
-	FILE* input = fopen(iface, "r");
+	if(!strcmp(out_iface, ""))
+	{
+		struct dirent *de;
+		DIR *dr = opendir("./folder_for_iface");
+		while((void*)(de = readdir(dr)) != NULL)
+			if(strcmp(de->d_name, "..") && strcmp(de->d_name, "."))
+			{
+				printf("\tInterface: %s\n", de->d_name);
+				stat(de->d_name);
+			}
+		return 0;
+	}
+	char temp = "./folder_for_iface";
+	strcat(temp, out_iface);
+	FILE* input = fopen(temp, "r");
 	if(input == NULL) return 1;
 	char c = fgetc(input); 
     while (c != EOF) 
@@ -474,9 +485,9 @@ void clean()
 {
 	stop();
 	struct dirent *de;
-	DIR *dr = opendir(".");
+	DIR *dr = opendir("./folder_for_iface");
 	while((void*)(de = readdir(dr)) != NULL)
-		if(strcmp(de->d_name, ".git") && strcmp(de->d_name, "Makefile") && strcmp(de->d_name, "main.c") && strcmp(de->d_name, "a.out") && strcmp(de->d_name, "system.txt") && strcmp(de->d_name, "README.md"))
+		if(strcmp(de->d_name, "Makefile") && strcmp(de->d_name, "main.c") && strcmp(de->d_name, "folder_for_iface") && strcmp(de->d_name, "system.txt") && strcmp(de->d_name, "README.md"))
 			remove(de->d_name);
 	closedir(dr);
 	FILE* system_input = fopen("system.txt", "w");
