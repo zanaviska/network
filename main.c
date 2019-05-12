@@ -230,6 +230,7 @@ void clean();
 
 int main(int argc, char* argv[])
 {
+	//printf("----------------??------------");
 	if(argc < 2)
 	{
 		printf("Error: you should write parametr\n");
@@ -242,6 +243,7 @@ int main(int argc, char* argv[])
 	if(argc == 2 && !strcmp(argv[1], "--help")) help();
 	if(argc == 2 && !strcmp(argv[1], "stat")) stat("");
 	if(argc == 3 && !strcmp(argv[1], "stat")) stat(argv[2]);
+	if(argc == 2 && !strcmp(argv[1], "clean")) clean();
 	return 0;
 }
 
@@ -355,7 +357,7 @@ int start()
 		memset(&source, 0, sizeof(source));
 		source.sin_addr.s_addr = iph->saddr;
 		increase(tree_root, source.sin_addr.s_addr);
-		printf("There is %d packets  and last is from %s(%d) \n\r", ++count, inet_ntoa(source.sin_addr), source.sin_addr.s_addr);
+		//printf("There is %d packets  and last is from %s(%d) \n\r", ++count, inet_ntoa(source.sin_addr), source.sin_addr.s_addr);
 	}
 	close(sock_raw);
 	output = fopen(iface, "w");
@@ -367,7 +369,7 @@ int start()
 
 void show(int ip)
 {
-	printf("---------------------------------------------------------------------\n");
+	//printf("---------------------------------------------------------------------\n");
 	int shmid;
 	key_t shared_memory_key = 5987;
 	int *need, *ip_answer;//if need == 1 than another proccess calculate answer for ip and store it in ip_answer
@@ -405,20 +407,34 @@ int stop()
 	return 0;
 }
 
-int select_iface(char* iface)
+int select_iface(char* new_iface)
 {
+	//printf("----------!-------------------");
 	int not_stoped = stop();
+	tree_root = clear(tree_root);
+
 	FILE* system_input;
 	system_input = fopen("system.txt", "w");
-	fprintf(system_input, "%s\n", iface);
+	fprintf(system_input, "%s\n-1\n1", new_iface);
+	strcpy(iface, new_iface);
 	fclose(system_input);
+
+	system_input = fopen(new_iface, "r+");
+	int ip, count;
+	if(system_input != NULL)
+	{
+		while(fscanf(system_input, "%d%d", &ip, &count) == 2)
+			tree_root = insert(tree_root, ip, count);
+		//printf("%d", system_input);
+		fclose(system_input);
+	}
 	if(!not_stoped)
 		start();
 }
 
 int help()
 {
-	printf("Base syntacs: \n\tsudo ./a.out [command].\nAvailable comands:\n");
+	printf("Base syntacs: \n\tsudo ./a.out [command].\nProgram should be run as a root.\nAvailable comands:\n");
 	printf("\t--help            show usage information\n");
 	printf("\tstart             Program starts to stiff packets from particular interface(default: eth0)\n");
 	printf("\tstop              Program doesn't sniff packets\n");
@@ -434,9 +450,12 @@ int stat(char* iface)
 	{
 		struct dirent *de;
 		DIR *dr = opendir(".");
-		while(de = readdir(dr) != NULL)
-			if(strcmp(de->d_name, "Makefile") && strcmp(de->d_name, "main.c") && strcmp(de->d_name, "a.out") && strcmp(de->d_name, "system.txt") && strcmp(de->d_name, "README.md"))
-				stat(de->d_name);
+		while((void*)(de = readdir(dr)) != NULL)
+			if(strcmp(de->d_name, "..") && strcmp(de->d_name, ".") && strcmp(de->d_name, "Makefile") && strcmp(de->d_name, "main.c") && strcmp(de->d_name, "a.out") && strcmp(de->d_name, "system.txt") && strcmp(de->d_name, "README.md"))
+				{
+					printf("\tInterface: %s\n", de->d_name);
+					stat(de->d_name);
+				}
 		return 0;
 	}
 	FILE* input = fopen(iface, "r");
@@ -455,11 +474,11 @@ void clean()
 	stop();
 	struct dirent *de;
 	DIR *dr = opendir(".");
-	while(de = readdir(dr) != NULL)
+	while((void*)(de = readdir(dr)) != NULL)
 		if(strcmp(de->d_name, "Makefile") && strcmp(de->d_name, "main.c") && strcmp(de->d_name, "a.out") && strcmp(de->d_name, "system.txt") && strcmp(de->d_name, "README.md"))
 			remove(de->d_name);
 	closedir(dr);
 	FILE* system_input = fopen("system.txt", "w");
-	fscanf(system_input, "eth0\n-1\n1");
+	fprintf(system_input, "eth0\n-1\n1");
 	fclose(system_input);
 }
