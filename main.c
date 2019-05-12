@@ -14,6 +14,9 @@
 #include <string.h>
 #include <signal.h>
 #include <sys/wait.h> 
+#include <sys/shm.h>
+
+#define SHMSZ     27
 
 // to store all ip and count for iface and have a quick access to it, I use avl tree
 // the key of balance is our ip
@@ -170,22 +173,31 @@ void preOrder(struct node *root)
 void increase(struct node *root, int ip)
 {
 	if(root == NULL) //only if we inc node in empty tree
-		return tree_root = newnode(ip, 1);
+	{
+		tree_root = newnode(ip, 1);
+		return;
+	}
 	if(root->ip == ip)
 	{
 		root->count++;
-		return root;
+		return;
 	}
 	struct node* res = root;
 	if(ip < root->ip)
 	{
 		if(root->left == NULL)
-			return tree_root = insert(tree_root, ip, 1);
+		{
+			tree_root = insert(tree_root, ip, 1);
+			return;
+		}
 		increase(root->left, ip);
 	} else
 	{
 		if(root->right == NULL)
-			return tree_root = insert(tree_root, ip, 1);
+		{
+			tree_root = insert(tree_root, ip, 1);
+			return;
+		}
 		increase(root->right, ip);
 	}
 }
@@ -205,6 +217,7 @@ int sock_raw;
 int total = 0;
 struct sockaddr_in source, dest;
 char iface[];
+FILE* output;
 
 int start();
 int stop();
@@ -227,15 +240,31 @@ int main(int argc, char* argv[])
 	if(argc == 3 && !strcmp(argv[1], "stat")) stat();
 	if(argc == 2 && !strcmp(argv[1], "--help")) help();
 	return 0;
-	increase(tree_root, 15);
-	preOrder(tree_root);
-	printf("\n");
-	increase(tree_root, -15);
-	preOrder(tree_root);
-	printf("\n");
-	increase(tree_root, -5);
-	preOrder(tree_root);
-	printf("\n");
+}
+
+void print_tree(struct node* root)
+{
+	if(root == NULL)
+		return;
+	print_tree(root->left);
+	struct in_addr ip_addr;
+    ip_addr.s_addr = root->ip;
+	fprintf(output, "%s %d\n", inet_ntoa(ip_addr), root->count);
+	print_tree(root->right);
+}
+
+int print_count_for_ip(int ip)
+{
+	struct node* now = tree_root;
+	while(now != NULL)
+	{
+		if(now->ip == ip) return now->count;
+		if(ip < now->ip)
+			now = now->left;
+		else
+			now = now->right;
+	}
+	return 0;
 }
 
 int start()
@@ -274,7 +303,6 @@ int start()
 		return 1;
 	}
 	int pid = fork();
-	printf("\n\n%d\n\n", pid);
 	if(pid)
 		return 0;
 	pid = fork();
@@ -284,8 +312,35 @@ int start()
 	fprintf(system_input, "%s\n%d\n%d", iface, pid, sock_raw);
 	fclose(system_input);
 	int status;
+	
+	//create shared memory with proccess that call show function
+	key_t shared_memory_key = 5987;
+	int shmid;
+	if ((shmid = shmget(shared_memory_key, SHMSZ, IPC_CREAT | 0666)) < 0) 
+	{
+        perror("shmget");
+        exit(1);
+    }
+	int *need, *ip;//if need == 1 than we need to calculate answer for ip and store it in ip
+	if ((need = shmat(shmid, NULL, 0)) == (int *) -1) 
+	{
+        perror("shmat");
+        exit(1);
+    }
+	*need = 0;
+	ip = need;
+	ip++;
+
 	while(!waitpid(-1, &status, WNOHANG))
 	{
+		if(*need)
+		{
+			printf("???????????????????????????????????????????????\n");
+			printf("%d\n", *ip);
+			*ip = print_count_for_ip(*ip);
+			printf("%d\n", *ip);
+			*need = 0;
+		}
 		saddr_size = sizeof saddr;
 		//Receive a packet
 		data_size = recvfrom(sock_raw , buffer , 65536 , 0 , &saddr , &saddr_size);
@@ -301,13 +356,37 @@ int start()
 		source.sin_addr.s_addr = iph->saddr;
 		increase(tree_root, source.sin_addr.s_addr);
 		printf("There is %d packets  and last is from %s(%d) \n\r", ++count, inet_ntoa(source.sin_addr), source.sin_addr.s_addr);
-		preOrder(tree_root);
-		printf("\n");
-
 	}
 	close(sock_raw);
-	printf("Finished");
+	output = fopen(iface, "w");
+	print_tree(tree_root);
+	fclose(output);
+	printf("Finished\n");
 	return 0;
+}
+
+void show(int ip)
+{
+	printf("---------------------------------------------------------------------\n");
+	int shmid;
+	key_t shared_memory_key = 5987;
+	int *need, *ip_answer;//if need == 1 than another proccess calculate answer for ip and store it in ip_answer
+	if ((shmid = shmget(shared_memory_key, SHMSZ, 0666)) < 0) 
+	{
+        perror("shmget");
+        exit(1);
+    }
+	if ((need = shmat(shmid, NULL, 0)) == (int *) -1) {
+        perror("shmat");
+        exit(1);
+    }
+	ip_answer = need;
+	ip_answer++;
+	*ip_answer = ip;
+	*need = 1;
+	while(*need)
+		sleep(5);
+	printf("There is %d packets for this IP\n", *ip_answer);
 }
 
 int stop()
@@ -319,25 +398,11 @@ int stop()
 	fseek(system_input, 0, SEEK_SET);
 	fprintf(system_input, "%s\n-1\n1\n", iface);  
 	fclose(system_input);
-	//close(sock_raw);
+	if(ppid == -1)
+		return 1;
 	shutdown(sock_raw, 2);
-	getchar();
 	kill(ppid, SIGTERM);
 	return 0;
-}
-
-void show(int ip)
-{
-	struct node* now = tree_root;
-	while(now != NULL)
-	{
-		if(now->ip == ip) return printf("There are %d from this IP address\n", now->count);
-		if(ip < now->ip)
-			now = now->left;
-		else
-			now = now->right;
-	}
-	printf("There is 0 packets prom that IP address\n");
 }
 
 int select_iface(char* iface)
