@@ -380,10 +380,10 @@ void show(int ip)
         perror("shmat");
         exit(1);
     }
+	*need = 1;
 	ip_answer = need;
 	ip_answer++;
 	*ip_answer = ip;
-	*need = 1;
 	while(*need)
 		sleep(5);
 	printf("There is %d packets for this IP\n", *ip_answer);
