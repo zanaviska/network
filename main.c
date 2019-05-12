@@ -344,6 +344,7 @@ int start()
 		}
 		saddr_size = sizeof saddr;
 		//Receive a packet
+		//int x = fork();
 		data_size = recvfrom(sock_raw , buffer , 65536 , 0 , &saddr , &saddr_size);
 		if(data_size < 0)
 		{
