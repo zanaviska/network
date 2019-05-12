@@ -451,7 +451,7 @@ int stat(char* iface)
 		struct dirent *de;
 		DIR *dr = opendir(".");
 		while((void*)(de = readdir(dr)) != NULL)
-			if(strcmp(de->d_name, "..") && strcmp(de->d_name, ".") && strcmp(de->d_name, "Makefile") && strcmp(de->d_name, "main.c") && strcmp(de->d_name, "a.out") && strcmp(de->d_name, "system.txt") && strcmp(de->d_name, "README.md"))
+			if(strcmp(de->d_name, ".git") && strcmp(de->d_name, "..") && strcmp(de->d_name, ".") && strcmp(de->d_name, "Makefile") && strcmp(de->d_name, "main.c") && strcmp(de->d_name, "a.out") && strcmp(de->d_name, "system.txt") && strcmp(de->d_name, "README.md"))
 				{
 					printf("\tInterface: %s\n", de->d_name);
 					stat(de->d_name);
@@ -475,7 +475,7 @@ void clean()
 	struct dirent *de;
 	DIR *dr = opendir(".");
 	while((void*)(de = readdir(dr)) != NULL)
-		if(strcmp(de->d_name, "Makefile") && strcmp(de->d_name, "main.c") && strcmp(de->d_name, "a.out") && strcmp(de->d_name, "system.txt") && strcmp(de->d_name, "README.md"))
+		if(strcmp(de->d_name, ".git") && strcmp(de->d_name, "Makefile") && strcmp(de->d_name, "main.c") && strcmp(de->d_name, "a.out") && strcmp(de->d_name, "system.txt") && strcmp(de->d_name, "README.md"))
 			remove(de->d_name);
 	closedir(dr);
 	FILE* system_input = fopen("system.txt", "w");
