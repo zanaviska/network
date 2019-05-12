@@ -459,6 +459,7 @@ int stat(char* iface)
 		return 0;
 	}
 	FILE* input = fopen(iface, "r");
+	if(input == NULL) return 1;
 	char c = fgetc(input); 
     while (c != EOF) 
     { 
