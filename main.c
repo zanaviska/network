@@ -290,7 +290,6 @@ int start()
 		return 1;
 	}
 
-	printf("Starting...\n");
 	//Create a raw socket that shall sniff
 	sock_raw = socket(AF_INET , SOCK_RAW , IPPROTO_TCP);
 	if(sock_raw < 0)
@@ -360,7 +359,7 @@ int start()
 		//printf("There is %d packets  and last is from %s(%d) \n\r", ++count, inet_ntoa(source.sin_addr), source.sin_addr.s_addr);
 	}
 	close(sock_raw);
-	char temp = "./folder_for_iface";
+	char temp[] = "./folder_for_iface/";
 	strcat(temp, iface);
 	output = fopen(temp, "w");
 	print_tree(tree_root);
@@ -411,7 +410,7 @@ int stop()
 
 int select_iface(char* new_iface)
 {
-	//printf("----------!-------------------");
+	printf("----------!-------------------");
 	int not_stoped = stop();
 	tree_root = clear(tree_root);
 
@@ -420,8 +419,8 @@ int select_iface(char* new_iface)
 	fprintf(system_input, "%s\n-1\n1", new_iface);
 	strcpy(iface, new_iface);
 	fclose(system_input);
-	
-	char temp = "./folder_for_iface";
+
+	char temp[] = "./folder_for_iface/";
 	strcat(temp, iface);
 	system_input = fopen(temp, "r+");
 	int ip, count;
@@ -434,6 +433,7 @@ int select_iface(char* new_iface)
 	}
 	if(!not_stoped)
 		start();
+	
 }
 
 int help()
@@ -450,15 +450,10 @@ int help()
 
 int stat(char* out_iface)
 {
-	if(!strcmp(out_iface, iface))
-	{
-		preOrder(tree_root);
-		return 0;
-	}
 	if(!strcmp(out_iface, ""))
 	{
 		struct dirent *de;
-		DIR *dr = opendir("./folder_for_iface");
+		DIR *dr = opendir("./folder_for_iface/");
 		while((void*)(de = readdir(dr)) != NULL)
 			if(strcmp(de->d_name, "..") && strcmp(de->d_name, "."))
 			{
@@ -467,7 +462,17 @@ int stat(char* out_iface)
 			}
 		return 0;
 	}
-	char temp = "./folder_for_iface";
+	FILE* sys = fopen("system.txt", "r");
+	fscanf(sys, "%s", &iface);
+	fclose(sys);
+	if(!strcmp(out_iface, iface))
+	{
+		//printf("this way\n");
+		if(!stop())
+			start();
+	}
+	//printf("%d %s %s\n", strcmp(out_iface, iface), out_iface, iface);
+	char temp[] = "./folder_for_iface/";
 	strcat(temp, out_iface);
 	FILE* input = fopen(temp, "r");
 	if(input == NULL) return 1;
@@ -485,10 +490,23 @@ void clean()
 {
 	stop();
 	struct dirent *de;
-	DIR *dr = opendir("./folder_for_iface");
+	DIR *dr = opendir(".");
 	while((void*)(de = readdir(dr)) != NULL)
 		if(strcmp(de->d_name, "Makefile") && strcmp(de->d_name, "main.c") && strcmp(de->d_name, "folder_for_iface") && strcmp(de->d_name, "system.txt") && strcmp(de->d_name, "README.md"))
 			remove(de->d_name);
+	closedir(dr);
+	dr = opendir("./folder_for_iface");
+	//printf("%d\n", dr);
+	while((void*)(de = readdir(dr)) != NULL) 
+	{
+		//printf("%s\n", de->d_name);
+		if(strcmp(de->d_name, "..") && strcmp(de->d_name, "."))
+		{
+			char qq[] = "folder_for_iface/";
+			strcat(qq, de->d_name);
+			remove(qq);
+		}
+	}
 	closedir(dr);
 	FILE* system_input = fopen("system.txt", "w");
 	fprintf(system_input, "eth0\n-1\n1");
